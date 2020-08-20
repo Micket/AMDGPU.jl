@@ -3,18 +3,13 @@
 # Device functionality
 #
 
-## device properties
-
-GPUArrays.threads(dev::HSAAgent) = 1024
-
-
 ## execution
 
-struct ROCBackend <: AbstractGPUBackend end
+struct ROCArrayBackend <: AbstractGPUBackend end
 
 struct ROCKernelContext <: AbstractKernelContext end
 
-function GPUArrays.gpu_call(::ROCBackend, f, args, threads::Int, blocks::Int;
+function GPUArrays.gpu_call(::ROCArrayBackend, f, args, threads::Int, blocks::Int;
                             name::Union{String,Nothing})
     groupsize, gridsize = threads, blocks*threads
     #gridsize = max(groupsize, gridsize)
@@ -27,7 +22,7 @@ function GPUArrays.gpu_call(::ROCBackend, f, args, threads::Int, blocks::Int;
     wait(@roc groupsize=groupsize gridsize=gridsize f(ROCKernelContext(), args...))
 end
 
-## executed on-device
+## on-device
 
 # indexing
 
@@ -39,6 +34,13 @@ for (f, froc) in (
     )
     @eval GPUArrays.$f(::ROCKernelContext) = AMDGPU.$froc().x
 end
+
+# math
+
+@inline GPUArrays.cos(ctx::ROCKernelContext, x) = cos(x)
+@inline GPUArrays.sin(ctx::ROCKernelContext, x) = sin(x)
+@inline GPUArrays.sqrt(ctx::ROCKernelContext, x) = sqrt(x)
+@inline GPUArrays.log(ctx::ROCKernelContext, x) = log(x)
 
 # memory
 
@@ -238,7 +240,7 @@ end
 
 GPUArrays.device(x::ROCArray) = x.buf.agent
 
-GPUArrays.backend(::Type{<:ROCArray}) = ROCBackend()
+GPUArrays.backend(::Type{<:ROCArray}) = ROCArrayBackend()
 
 function Base.convert(::Type{ROCDeviceArray{T,N,AS.Global}}, a::ROCArray{T,N}) where {T,N}
     ptr = Base.unsafe_convert(Ptr{T}, a.buf)
